@@ -28,13 +28,29 @@ type Server = Pipe ClientMsg ServerMsg App
 
 appEntry :: IO ()
 appEntry = do
-  sock <- socket AF_INET Stream 0
-  setSocketOption sock ReuseAddr 1
-  bind sock (SockAddrInet 4242 iNADDR_ANY)
-  listen sock 2
-  putStrLn "Listening on port 4242..."
   env <- mkEnv
+  addr <- resolve "3000"
+  putStrLn "Listening on port 3000..."
+  sock <- open addr
   mainLoop sock env
+  where
+    resolve port = do
+        let hints = defaultHints {
+                addrFlags = [AI_PASSIVE]
+              , addrSocketType = Stream
+              }
+        addr:_ <- getAddrInfo (Just hints) Nothing (Just port)
+        return addr
+    open addr = do
+        sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+        setSocketOption sock ReuseAddr 1
+        -- If the prefork technique is not used,
+        -- set CloseOnExec for the security reasons.
+        -- fd <- fdSocket sock
+        -- setCloseOnExecIfNeeded fd
+        bind sock (addrAddress addr)
+        listen sock 10
+        return sock
 
 runStack :: Env -> Client -> Effect App a -> IO (a, Conversation)
 runStack env client = flip runStateT (Conversation Nothing) 
