@@ -112,7 +112,9 @@ handleClient (RegisterName name) = do
   cID <- lift (asks ident)
   setName cID name
   return Nothing
-handleClient GetClients = Just . ActiveClients <$> getNames
+handleClient GetClients = do
+  cID <- lift (asks ident)
+  Just . ActiveClients <$> getNames cID
 handleClient (ChooseRecip name) = do
   rID <- getID name
   put $ Conversation rID

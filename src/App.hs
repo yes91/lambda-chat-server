@@ -29,6 +29,7 @@ import Data.IntMap (IntMap)
 import qualified Data.IntMap as Map
 import Data.Bimap (Bimap)
 import qualified Data.Bimap as B
+import Data.List as L
 
 import Control.Monad.Reader
 import Control.Monad.IO.Class
@@ -91,10 +92,17 @@ nameTaken name = do
 nameTakenT :: Env -> Name -> STM Bool
 nameTakenT Env{..} name = B.memberR name <$> readTVar names
 
-getNames :: (MonadIO m, MonadReader Env m) => m [String]
-getNames = do
-  ns <- asks names
-  liftIO . atomically $ B.elems <$> readTVar ns
+-- Get the names of all other available users
+getNames :: (MonadIO m, MonadReader Env m) => ID -> m [Name]
+getNames cID = do
+  env <- ask
+  let ns = names env
+  liftIO . atomically $ do
+    list <- B.toList <$> readTVar ns
+    list' <- flip filterM list $ \(oID, _) -> do
+      busy <- isBusyT env oID
+      return $ not busy && oID /= cID
+    return $ map snd list'
 
 getID :: (MonadIO m, MonadReader Env m) => Name -> m (Maybe ID)
 getID name = do
