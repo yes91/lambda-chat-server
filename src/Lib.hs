@@ -22,15 +22,16 @@ import Control.Monad.Reader
 import Control.Monad.State
 
 import App
+import Options
 
 type App = ReaderT Env (ReaderT Client (StateT Conversation IO))
-type Server = Pipe ClientMsg ServerMsg App
 
 appEntry :: IO ()
 appEntry = do
+  opts <- getOpts
   env <- mkEnv
-  addr <- resolve "3000"
-  putStrLn "Listening on port 3000..."
+  addr <- resolve (port opts)
+  putStrLn $ "Listening on port " ++ port opts ++ "..."
   sock <- open addr
   mainLoop sock env
   where
@@ -136,44 +137,7 @@ handleClient (Message msg) = do
   sent <- case recip of
     Just i -> sendMessage i $ Msg nick msg
     Nothing -> return False
-  return $ if not sent then Just (Notice "Send failed, recipient disconnected.") else Nothing
-
-{-
-handleClient :: Env -> Client ->  IO ()
-handleClient env@Env{..} client@Client{..} = do
-  
-   hPutStrLn handle $ "Welcome " ++ nick ++ "!"
-
-   recip <- fix $ \loop -> do
-     hPutStrLn handle $ "Here is a list of available users: "
-     users <- atomically $ Map.keys <$> readTVar clients
-     mapM_ (hPutStrLn handle) users
-     hPutStrLn handle "Please choose a recipient: "
-     choice <- hGetLine handle
-     result <- atomically $ do
-       exists <- clientExists env choice
-       busy <- isBusy env choice
-       return $ exists && not busy
-     if result
-       then atomically (setBusy env choice True) >> return choice
-       else hPutStrLn handle "Invalid recipient, try again." >> loop
-
-   reader <- forkIO . forever $ do
-     msg <- atomically $ readTChan sendChan
-     hPutStrLn handle msg
-
-   fix $ \loop -> do
-     input <- hGetLine handle
-     when (input /= ".exit") $ do
-       success <- atomically $ sendMessage env recip input
-       if success
-         then loop
-         else hPutStrLn handle "Send failed, recipient disconnected."
-
-   killThread reader
-   atomically (setBusy env recip False)
--}
-   
+  return $ if not sent then Just (Notice "Send failed, recipient disconnected.") else Nothing   
        
      
 
