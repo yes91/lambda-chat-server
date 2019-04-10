@@ -80,7 +80,8 @@ mainLoop sock env = do
 
       reader <- forkIO $ do
         let getMsg = atomically . readTChan $ sendChan client
-            f (Msg nick msg) = MessageFrom nick msg
+            f (Req rID) = ChatRequest rID
+            f (Msg pair msg) = MessageFrom pair msg
         runEffect $ do
           lift getMsg >~ P.map f >-> for cat encode >-> P.mapM_ sink
       
@@ -105,31 +106,37 @@ mainLoop sock env = do
     
   mainLoop sock env
 
+getNick :: App (ID, Name)
+getNick = do
+  cID <- lift (asks ident)
+  maybe (cID, "") (\nick -> (cID, nick)) <$> getName cID
+
+setNick :: Name -> App ()
+setNick name = do
+  cID <- lift (asks ident)
+  setName cID name
+
 handleClient :: ClientMsg -> App (Maybe ServerMsg)
 handleClient RequestJoin = return $ Just ConfirmJoin
 handleClient (CheckName name) = Just . NameTaken <$> nameTaken name
-handleClient (RegisterName name) = do
-  cID <- lift (asks ident)
-  setName cID name
-  return Nothing
+handleClient (RegisterName name) = setNick name >> return Nothing
 handleClient GetClients = do
   cID <- lift (asks ident)
   Just . ActiveClients <$> getNames cID
-handleClient (ChooseRecip name) = do
-  rID <- getID name
-  put $ Conversation rID
-  maybe (return ()) (flip setBusy True) rID
+handleClient (ChooseRecip rID) = do
+  cID <- lift (asks ident)
+  put . Conversation $ Just rID
+  setBusy rID True
+  sendMessage rID $ Req cID
   return Nothing
 handleClient (Message msg) = do
-  when (msg == ".exit") $ fail "Connection closed!"
-  cID <- lift (asks ident)
+  when (msg == ".exit") $ fail "Connection closed."
+  nick <- getNick
   recip <- gets recipient
-  nick <- maybe "" id <$> getName cID
   sent <- case recip of
     Just i -> sendMessage i $ Msg nick msg
     Nothing -> return False
-  return Nothing
--- handleClient _ = fail "Unhandled request"
+  return $ if not sent then Just (Notice "Send failed, recipient disconnected.") else Nothing
 
 {-
 handleClient :: Env -> Client ->  IO ()

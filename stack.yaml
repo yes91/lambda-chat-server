@@ -39,7 +39,7 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
   - github: yes91/lambda-chat-protocol
-    commit: 37234670360ae36a54bea87e6f74f7814239e77d
+    commit: a3e388d
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

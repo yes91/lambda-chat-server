@@ -36,7 +36,8 @@ import Control.Monad.IO.Class
 
 type Name = String
 type ID = Int
-data Message = Msg Name String
+data Message = Req ID
+             | Msg (ID, Name) String
 
 data Client = Client { ident :: ID
                      , sendChan :: TChan Message
@@ -93,7 +94,7 @@ nameTakenT :: Env -> Name -> STM Bool
 nameTakenT Env{..} name = B.memberR name <$> readTVar names
 
 -- Get the names of all other available users
-getNames :: (MonadIO m, MonadReader Env m) => ID -> m [Name]
+getNames :: (MonadIO m, MonadReader Env m) => ID -> m [(ID, Name)]
 getNames cID = do
   env <- ask
   let ns = names env
@@ -102,7 +103,7 @@ getNames cID = do
     list' <- flip filterM list $ \(oID, _) -> do
       busy <- isBusyT env oID
       return $ not busy && oID /= cID
-    return $ map snd list'
+    return list'
 
 getID :: (MonadIO m, MonadReader Env m) => Name -> m (Maybe ID)
 getID name = do
